@@ -30,6 +30,8 @@ static err_t callback_resposta_recebida(void *arg, struct tcp_pcb *pcb, struct p
 }
 
 static err_t callback_conectado(void *arg, struct tcp_pcb *pcb, err_t err) {
+    EstadoBotoes* dados_recebidos = (EstadoBotoes*)arg;
+
     if (err != ERR_OK) {
         printf("Erro ao conectar: %d\n", err);
         tcp_abort(pcb);
@@ -38,14 +40,10 @@ static err_t callback_conectado(void *arg, struct tcp_pcb *pcb, err_t err) {
 
     tcp_recv(pcb, callback_resposta_recebida);
 
-    // Coletar dados
-    bool botao_a = botao_a_pressionado();
-    bool botao_b = botao_b_pressionado();
-
     char corpo_json[128];
     snprintf(corpo_json, sizeof(corpo_json),
              "{\"botao_a\": %d, \"botao_b\": %d}",
-             botao_a, botao_b);
+             dados_recebidos->botao_a, dados_recebidos->botao_b);
 
     char requisicao[512];
     // Usar PROXY_HOST no cabeçalho Host
@@ -74,6 +72,8 @@ static err_t callback_conectado(void *arg, struct tcp_pcb *pcb, err_t err) {
 }
 
 static void callback_dns_resolvido(const char *nome_host, const ip_addr_t *ip_resolvido, void *arg) {
+    EstadoBotoes* dados_recebidos = (EstadoBotoes*)arg;
+
     if (!ip_resolvido) {
         printf("Erro: DNS falhou para %s\n", nome_host);
         return;
@@ -95,10 +95,10 @@ static void callback_dns_resolvido(const char *nome_host, const ip_addr_t *ip_re
     }
 }
 
-void enviar_dados_para_nuvem() {
+void enviar_dados_para_nuvem(const EstadoBotoes *dados_a_enviar) {
     ip_addr_t endereco_ip;
     // Usar PROXY_HOST para resolução DNS
-    err_t resultado_dns = dns_gethostbyname(PROXY_HOST, &endereco_ip, callback_dns_resolvido, NULL);
+    err_t resultado_dns = dns_gethostbyname(PROXY_HOST, &endereco_ip, callback_dns_resolvido, (void*) dados_a_enviar);
 
     if (resultado_dns == ERR_OK) {
         // Se já resolvido (cache), conectar diretamente à porta do PROXY
@@ -109,6 +109,8 @@ void enviar_dados_para_nuvem() {
             printf("Erro ao criar pcb (cache)\n");
             return;
         }
+
+        tcp_arg(pcb, (void*)dados_a_enviar);
 
         // Conectar à porta do PROXY
         err_t erro = tcp_connect(pcb, &endereco_ip, PROXY_PORT, callback_conectado);
