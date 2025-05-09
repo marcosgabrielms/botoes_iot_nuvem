@@ -1,53 +1,64 @@
 #include <stdio.h>
 #include "pico/stdlib.h"
-#include "hardware/i2c.h"
-#include "pico/cyw43_arch.h"
+#include <string.h>
+#include <stdlib.h>
 
-// I2C defines
-// This example will use I2C0 on GPIO8 (SDA) and GPIO9 (SCL) running at 400KHz.
-// Pins can be changed, see the GPIO function select table in the datasheet for information on GPIO assignments
-#define I2C_PORT i2c0
-#define I2C_SDA 8
-#define I2C_SCL 9
+#include "botoes.h"
+#include "conexao.h"
+#include "wifi.h"
 
 
+bool estado_ant_botao_a;
+bool estado_ant_botao_b;
 
+int iniciar_conexao_wifi() 
+{
+   printf("Conectando-se à rede: %s\n", NOME_WIFI);
 
+    int status_conexao = conexao_wifi();
+    if (status_conexao == 0) {
+        printf("CONEXAO ESTABECIDA\n");
+        printf("IP do dispositivo: %s\n", ipaddr_ntoa(&netif_default->ip_addr));
+    } else {
+        printf("FALHA NA CONEXAO\n");
+    }
+
+    sleep_ms(3000);
+
+    return status_conexao;
+}
+    
 int main()
 {
-    stdio_init_all();
+    stdio_init_all(); 
+    iniciar_botoes(); 
+    sleep_ms(1500);
 
-    // Initialise the Wi-Fi chip
-    if (cyw43_arch_init()) {
-        printf("Wi-Fi init failed\n");
-        return -1;
+    conexao_wifi();
+
+    estado_ant_botao_a = botao_a_pressionado();
+    estado_ant_botao_b = botao_b_pressionado();
+
+    enviar_dados_para_nuvem(estado_botoes);
+
+    while (true){
+        cyw43_arch_poll();
+
+        bool estado_atual_botao_a = botao_a_pressionado();
+        bool estado_atual_botao_b = botao_b_pressionado();
+
+        if ((estado_ant_botao_a != estado_atual_botao_a) || (estado_ant_botao_b != estado_atual_botao_b))
+        {
+            estado_botoes->botao_a = estado_atual_botao_a;
+            estado_botoes->botao_b = estado_atual_botao_b;
+
+            enviar_dados_para_nuvem(estado_botoes);
+
+            estado_ant_botao_a = estado_botoes->botao_a;
+            estado_ant_botao_b = estado_botoes->botao_b;
+        }
     }
-
-    // I2C Initialisation. Using it at 400Khz.
-    i2c_init(I2C_PORT, 400*1000);
-    
-    gpio_set_function(I2C_SDA, GPIO_FUNC_I2C);
-    gpio_set_function(I2C_SCL, GPIO_FUNC_I2C);
-    gpio_pull_up(I2C_SDA);
-    gpio_pull_up(I2C_SCL);
-    // For more examples of I2C use see https://github.com/raspberrypi/pico-examples/tree/master/i2c
-
-    // Enable wifi station
-    cyw43_arch_enable_sta_mode();
-
-    printf("Connecting to Wi-Fi...\n");
-    if (cyw43_arch_wifi_connect_timeout_ms("Your Wi-Fi SSID", "Your Wi-Fi Password", CYW43_AUTH_WPA2_AES_PSK, 30000)) {
-        printf("failed to connect.\n");
-        return 1;
-    } else {
-        printf("Connected.\n");
-        // Read the ip address in a human readable way
-        uint8_t *ip_address = (uint8_t*)&(cyw43_state.netif[0].ip_addr.addr);
-        printf("IP address %d.%d.%d.%d\n", ip_address[0], ip_address[1], ip_address[2], ip_address[3]);
-    }
-
-    while (true) {
-        printf("Hello, world!\n");
-        sleep_ms(1000);
-    }
+    cyw43_arch_deinit();
+    free(estado_botoes);
+    return 0;
 }
