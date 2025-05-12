@@ -1,69 +1,180 @@
+**Projeto: Servidor Web sobre o status dos botões da placa BitDogLab RP2040** 🚀🕹️💡
 
-### Arquivos Principais
+Este repositório contém o código-fonte e a configuração de build para um servidor web rodando na placa BitDogLab RP2040. O servidor oferece uma interface HTTP simples para ler o estado dos botões e controlar os LEDs integrados via Wi‑Fi. O projeto está modularizado em componentes independentes (`botoes`, `wifi`, `conexao`), cada um construído como uma biblioteca separada usando CMake. 📡🧩⚙️
 
-#### 1. `src/botoes_iot_nuvem.c`
-Este é o arquivo principal do projeto. Ele contém a função `main`, que inicializa o Wi-Fi, configura a comunicação I2C e conecta-se à rede. Ele também imprime mensagens no console e exibe o endereço IP obtido.
+---
 
-#### 2. `src/utils/botoes/botoes.c` e `src/utils/botoes/botoes.h`
-Estes arquivos implementam a lógica para inicializar e ler o estado de dois botões físicos conectados ao Raspberry Pi Pico W.
+## Sumário 📘📑🧭
 
-- **Funções principais:**
-  - `iniciar_botoes()`: Configura os pinos GPIO dos botões.
-  - `a_pressionado()`: Retorna `true` se o botão A estiver pressionado.
-  - `b_pressionado()`: Retorna `true` se o botão B estiver pressionado.
+1. [Hardware e Pré-requisitos](#hardware-e-pré-requisitos)
+2. [Estrutura de Diretórios](#estrutura-de-diretórios)
+3. [Build e Flash](#build-e-flash)
+4. [Visão Geral dos Módulos](#visão-geral-dos-módulos)
 
-#### 3. `src/utils/servidor_nuvem/conexao.c` e `src/utils/servidor_nuvem/conexao.h`
-Estes arquivos implementam a lógica para enviar dados para um servidor na nuvem via TCP.
+   * [Botões (`botoes/`)](#botões-botoes)
+   * [Wi‑Fi (`wifi/`)](#wi‑fi-wifi)
+   * [Conexão (`conexao/`)](#conexão-conexao)
+   * [Aplicação Principal (`main.c`)](#aplicação-principal-mainc)
+5. [Configuração](#configuração)
+6. [Uso](#uso)
+7. [Solução de Problemas](#solução-de-problemas)
+8. [Licença](#licença)
 
-- **Funções principais:**
-  - `enviar_dados_para_nuvem()`: Resolve o DNS do servidor e envia os dados dos botões em formato JSON.
-  - Callbacks para gerenciar conexões TCP e respostas do servidor.
+---
 
-#### 4. `CMakeLists.txt`
-Arquivo de configuração do CMake para compilar o projeto. Ele define as dependências, bibliotecas e configurações específicas do Raspberry Pi Pico W.
+## Hardware e Pré-requisitos 🧰📡🔌
 
-#### 5. `pico_sdk_import.cmake`
-Arquivo que localiza e importa o SDK do Raspberry Pi Pico. Ele permite que o projeto utilize as bibliotecas e APIs fornecidas pelo SDK.
+* **Placa**: BitDogLab RP2040
+* **Host de Desenvolvimento**: Qualquer PC com CMake (>= 3.13), Ninja ou Make, e Pico SDK instalado
+* **Conexões**:
 
-#### 6. `lwipopts.h`
-Configurações específicas para a biblioteca LWIP, usada para comunicação de rede. Este arquivo ajusta parâmetros como tamanho de buffer, suporte a DHCP, e opções de depuração.
+  * Botão A → GP16
+  * Botão B → GP17
+  * LEDs → GP18 (Verde), GP19 (Azul), GP20 (Vermelho)
+  * 5V e GND conforme pinagem da placa
+* **Rede**: SSID e senha do Wi‑Fi configurados em `wifi/wifi.h`.
 
-### Arquivos de Configuração do VS Code
+---
 
-A pasta `.vscode/` contém arquivos para configurar o ambiente de desenvolvimento no Visual Studio Code:
+## Estrutura de Diretórios 📁🧱📂
 
-- **`c_cpp_properties.json`**: Configura o IntelliSense para o C/C++.
-- **`cmake-kits.json`**: Define o kit de compilação para o CMake.
-- **`extensions.json`**: Recomenda extensões úteis para o projeto.
-- **`launch.json`**: Configurações de depuração para o Raspberry Pi Pico.
-- **`settings.json`**: Configurações específicas do projeto, como caminhos para o SDK e ferramentas.
-- **`tasks.json`**: Define tarefas como compilar, executar e flashar o firmware no Pico.
+```text
+project_root/
+├── CMakeLists.txt             # Script de build principal
+├── main.c                     # Ponto de entrada: inicialização e loop principal
+├── botoes/                    # Módulo de manipulação dos botões
+│   ├── CMakeLists.txt
+│   ├── botoes.h
+│   └── botoes.c
+├── wifi/                      # Módulo de inicialização e gestão de Wi‑Fi
+│   ├── CMakeLists.txt
+│   ├── wifi.h
+│   └── wifi.c
+└── conexao/                   # Módulo de conexão TCP / HTTP POST
+    ├── CMakeLists.txt
+    ├── conexao.h
+    └── conexao.c
+```
 
-### Arquivo `.gitignore`
-Ignora a pasta `build/` para evitar que arquivos gerados durante a compilação sejam adicionados ao repositório Git.
+---
 
-## Como Compilar e Executar
+## Build e Flash 🧪🛠️📤
 
-1. Certifique-se de que o SDK do Raspberry Pi Pico está configurado corretamente.
-2. Abra o projeto no Visual Studio Code.
-3. Compile o projeto usando a tarefa "Compile Project" (`Ctrl+Shift+B`).
-4. Flash o firmware no Pico W usando a tarefa "Flash".
-5. Conecte o Pico W a uma rede Wi-Fi e observe os logs no console.
+1. **Inicializar o SDK** (apenas na primeira vez):
 
-## Dependências
+   ```bash
+   git clone https://github.com/raspberrypi/pico-sdk.git
+   cd pico-sdk
+   git submodule update --init
+   ```
 
-- **Hardware**: Raspberry Pi Pico W, botões físicos conectados aos pinos GPIO 5 e 6.
-- **Software**:
-  - Raspberry Pi Pico SDK
-  - Biblioteca LWIP para comunicação de rede
-  - Ferramentas como `ninja`, `cmake`, e `openocd`.
+2. **Construir o projeto**:
 
-## Expansões Futuras
+   ```bash
+   cd project_root
+   mkdir build && cd build
+   cmake .. -G Ninja
+   ninja
+   ```
 
-- Adicionar suporte a mais sensores via I2C.
-- Implementar autenticação no servidor na nuvem.
-- Melhorar o tratamento de erros na comunicação de rede.
+3. **Gravar o UF2**:
 
-## Licença
+   * Segure BOOTSEL na RP2040 e conecte via USB.
+   * Copie `led_control_webserver.uf2` de `build/` para a unidade montada.
 
-Este projeto é distribuído sob a licença MIT. Consulte o arquivo `LICENSE` para mais detalhes.
+---
+
+## Visão Geral dos Módulos 🧩🧠📦
+
+### Botões (`botoes/`) 🟢🔘👆
+
+* **Interface**: `botoes.h`
+* **Funções**:
+
+  * `void iniciar_botoes(void);`
+    Configura os pinos GP16 e GP17 como entradas com pull-up.
+  * `bool botao_a_pressionado(void);`
+    Retorna `true` se o botão A estiver pressionado.
+  * `bool botao_b_pressionado(void);`
+    Retorna `true` se o botão B estiver pressionado.
+
+### Wi‑Fi (`wifi/`) 📶📲🔐
+
+* **Interface**: `wifi.h`
+* **Funções**:
+
+  * `int iniciar_conexao_wifi(void);`
+    Inicializa o hardware Wi‑Fi, conecta à rede definida em `NOME_WIFI` e imprime o IP.
+
+> **Nota**: SSID e senha estão definidos em `wifi.h`:
+>
+> ```c
+> #define NOME_WIFI  "MARCOS_5G"
+> #define SENHA_WIFI "Piy211940"
+> ```
+
+### Conexão (`conexao/`) 🌐🔌📨
+
+* **Interface**: `conexao.h`
+* **Função**:
+
+  * `void enviar_dados_para_nuvem(const EstadoBotoes *estado);`
+    Resolve o DNS de `PROXY_HOST`, abre conexão TCP e envia JSON com os estados dos botões.
+* **Callbacks**:
+
+  * Resolução DNS, conexão TCP, envio de dados (`callback_conectado`), recebimento da resposta (`callback_resposta_recebida`).
+* **Configuração**:
+
+  ```c
+  #define PROXY_HOST "meu.proxy.exemplo.com"
+  #define PROXY_PORT 8080
+  ```
+
+### Aplicação Principal (`main.c`) 🎯🔁💻
+
+1. **Inicializa I/O padrão** (`stdio_init_all()`)
+2. **Botões**: `iniciar_botoes()`
+3. **Wi‑Fi**: `iniciar_conexao_wifi()`
+4. **Aloca e inicializa** struct `EstadoBotoes`
+5. **Loop principal**:
+
+   * Poll de Wi‑Fi: `cyw43_arch_poll()`
+   * Leitura dos estados dos botões
+   * Ao detectar mudança, preenche `EstadoBotoes` e chama `enviar_dados_para_nuvem()`
+
+---
+
+## Configuração ⚙️📄📝
+
+* **Credenciais Wi‑Fi**: `wifi/wifi.h`
+* **Servidor Proxy**: `conexao/conexao.h`
+* **Pinos GPIO**: definidos em `botoes/botoes.h` (ajuste conforme fiação)
+
+---
+
+## Uso 🖱️🌍🧪
+
+1. Ligue a placa.
+2. Observe a saída serial a 115200 baud: status de conexão, endereço IP, resolução DNS, detalhes da requisição e resposta do servidor.
+3. Pressione o Botão A ou B para enviar mudanças de estado em JSON para seu endpoint proxy.
+
+Exemplo de payload JSON:
+
+```json
+{ "botao_a": 1, "botao_b": 0 }
+```
+
+---
+
+## Solução de Problemas 🐞🧯🛠️
+
+* **Falha na conexão Wi‑Fi**: verifique SSID/senha em `wifi.h` e intensidade do sinal.
+* **DNS não resolve**: confirme `PROXY_HOST` ou tente usar IP estático.
+* **Erro TCP**: verifique porta e disponibilidade do servidor.
+* **Malloc falhou**: recursos limitados; use buffers estáticos se necessário.
+
+---
+
+## Licença 📄🔓🧾
+
+Este projeto está licenciado sob a **MIT License**. Veja `LICENSE` para mais detalhes. 📘✅📥
